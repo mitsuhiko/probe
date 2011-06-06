@@ -22,7 +22,8 @@ import posixpath
 _missing = object()
 _input_re = re.compile(r'<input\s+([^>]+)>(?sm)')
 _label_re = re.compile(r'<input\s+([^>]+)>(?sm)')
-_attr_re = re.compile(r'(\S+)\s*=\s*(\S+|"[^"]*"|\'[^\']\')(?sm)')
+_attr_re = re.compile(r'(\S+)\s*=\s*((?:"[^"]*")|(?:\'[^\']\'))(?sm)')
+_link_re = re.compile(r'<a\s+[^>]*?href=((?:"[^"]*")|(?:\'[^\']\'))(?sm)')
 
 
 def parse_html_attributes(string):
@@ -462,15 +463,13 @@ def iter_probers(config):
 
 
 def probe_website(url, form_url=None, url_with_slash=None,
-                  url_without_slash=None, config=None):
-    if config is None:
-        config = {}
-    config['url'] = url
-    config['form_url'] = form_url
-    config['url_with_slash'] = url_with_slash
-    config['url_without_slash'] = url_without_slash
-    config = Config(config)
-
+                  url_without_slash=None):
+    config = Config({
+        'url':                  url,
+        'form_url':             form_url,
+        'url_with_slash':       url_with_slash,
+        'url_without_slash':    url_without_slash
+    })
     results = []
     for prober in iter_probers(config):
         rv = prober.check()
@@ -480,29 +479,26 @@ def probe_website(url, form_url=None, url_with_slash=None,
     return results
 
 
-if __name__ == '__main__':
-    def runtest(caption, url, *args, **kwargs):
-        print '%s [%s]' % (caption, url)
-        for result in probe_website(url, *args, **kwargs):
-            print '>', result
-        print
+def magic_probe(start_url):
+    form_url = url_with_slash = url_without_slash = None
+    resp = urllib.urlopen(start_url)
+    url = resp.geturl()
 
-    runtest('Django', 'https://www.djangoproject.com/',
-            '/admin/')
-    runtest('Giantbomb', 'http://www.giantbomb.com/',
-            '/admin/')
-    runtest('Shinpaku', 'http://www.shinpaku.com/')
-    runtest('Disus', 'http://www.disqus.com/')
-    runtest('Mozilla Addons', 'https://addons.mozilla.org/')
-    runtest('Djangosites', 'http://www.djangosites.org/')
-    runtest('Pylons', 'http://pylonsproject.org/')
-    runtest('Flask', 'http://flask.pocoo.org/',
-            url_with_slash='/community/')
-    runtest('BF3', 'http://bf3.immersedcode.org/',
-            url_with_slash='/twitter/', url_without_slash='/page/2')
-    runtest('php.net', 'http://www.php.net/')
-    runtest('Bitbucket', 'http://bitbucket.org/',
-            form_url='https://bitbucket.org/account/signup/?plan=5_users')
-    runtest('alexgaynor', 'http://alexgaynor.net/')
-    runtest('reddit', 'http://www.reddit.com/',
-            url_without_slash='/r/leagueoflegends')
+    for link in _link_re.findall(resp.read()):
+        if link[0] in '"\'':
+            link = link[1:-1]
+        link = urlparse.urljoin(url, link)
+        if urlparse.urlsplit(link).netloc == urlparse.urlsplit(url).netloc:
+            if url_with_slash is None and link.endswith('/') and link != url:
+                url_with_slash = link
+            elif url_without_slash is None and not link.endswith('/'):
+                url_without_slash = link
+            if form_url is None:
+                try:
+                    form_resp = urllib.urlopen(link).read()
+                    if '<form' in form_resp:
+                        form_url = link
+                except IOError:
+                    pass
+
+    return url, probe_website(url, form_url, url_with_slash, url_without_slash)
