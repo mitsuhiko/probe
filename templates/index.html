@@ -1,0 +1,16 @@
+{% extends 'layout.html' %}
+{% from '_results.html' import render_results %}
+{% block title %}Is your favorite website powered by Python?{% endblock %}
+{% block body %}
+  <p>Is your favorite website powered by Python?
+  <form action="" method=post id=probeform>
+    <p>
+      <input type=text name=url size=40 value="{{ url or '' }}" placeholder="Enter URL …">
+      <input type=submit value=Check!>
+  </form>
+  <div class=results>
+  {% if url %}
+    {{ render_results(url, results) }}
+  {% endif %}
+  </div>
+{% endblock %}

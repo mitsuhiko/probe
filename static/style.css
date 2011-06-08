@@ -1,0 +1,66 @@
+body {
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+    font-size: 16px;
+    margin: 0;
+    padding: 0;
+}
+
+div.box {
+    margin: 5em auto;
+    padding: 16px;
+    width: 30em;
+    border: 8px solid #238FA5;
+}
+
+div.box h1 {
+    margin: -16px -16px 16px -16px;
+    padding: 16px;
+    color: #17535F;
+    background: #9CD2DD;
+}
+
+div.box h2 {
+    color: #D39442;
+}
+
+div.box input {
+    border: 2px solid #eee;
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+    font-size: 16px;
+    padding: 3px;
+}
+
+div.box input[type="text"]:focus {
+    border-color: #D39442;
+}
+
+div.box input[type="submit"] {
+    background: #eee;
+}
+
+div.box input[type="submit"]:active {
+    border-style: inset;
+}
+
+div.results ul {
+    margin: 0 0 0 1.3em;
+    padding: 0;
+}
+
+div.results strong.score {
+    color: #CC1010;
+}
+
+div.results ul.hits strong.score {
+    color: #E74747;
+    font-weight: normal;
+}
+
+div.results strong.name {
+    color: #444;
+}
+
+img.spinner {
+    float: right;
+    margin: -50px 10px 0 0;
+}

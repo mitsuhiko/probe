@@ -14,6 +14,7 @@ from StringIO import StringIO
 from Cookie import SimpleCookie
 import httplib
 import urllib
+import urllib2
 import difflib
 import urlparse
 import posixpath
@@ -41,6 +42,7 @@ class Indicator(object):
     def __init__(self, callback, score=None):
         self.callback = callback
         self.score = score
+        self.description = callback.__doc__
 
     @property
     def name(self):
@@ -122,7 +124,7 @@ class Prober(object):
             port = int(port)
         else:
             port = scheme == 'http' and 80 or 443
-        con = cls(netloc, port)
+        con = cls(netloc, port, timeout=self.config.timeout)
         return con
 
     def make_headers(self, reference_headers=None):
@@ -186,19 +188,23 @@ class DjangoProber(Prober):
     name = 'Django'
 
     def probe_reason_capitalization(self):
+        """The status reason has the correct capitalization"""
         rv = self.make_request(self.config.missing_url + '/')
         return rv.status == 404 and rv.reason == 'NOT FOUND'
 
     def probe_redirects(self):
+        """The default redirecting behavior is there"""
         rv = self.make_request(self.config.missing_url.rstrip('/'))
         return rv.status in (301, 302) and rv.body == '' and \
             rv.headers.get('location', '').startswith(('http://', 'https://'))
 
     def probe_admin(self):
+        """An admin interface was detected"""
         rv = self.make_request('admin/')
         return rv.status == 200 and 'Django' in rv.body
 
     def probe_admin_media(self):
+        """Admin interface CSS files were found"""
         for url in 'media/admin/css/login.css', 'adminmedia/admin/css/login.css':
             rv = self.make_request(url)
             if rv.status == 200:
@@ -217,18 +223,21 @@ class DjangoProber(Prober):
         return False
 
     def probe_csrf_middleware(self):
+        """The CSRF middleware was detected"""
         if self.config.form_url is None:
             return
         rv = self.make_request(self.config.form_url)
         return "<input type='hidden' name='csrfmiddlewaretoken'" in rv.body
 
     def probe_debug_404(self):
+        """A debug 404 page was found"""
         rv = self.make_request(self.config.missing_url)
         return '<h1>Page not found <span>(404)</span></h1>' in rv.body and \
                ("You're seeing this error because you have "
                 "<code>DEBUG = True</code>") in rv.body
 
     def probe_csrf_cookie(self):
+        """A new CSRF token was found"""
         for url in self.config.url, self.config.form_url:
             if url is None:
                 continue
@@ -242,10 +251,12 @@ class DjangoProber(Prober):
         return False
 
     def probe_content_type(self):
+        """The correct default charset was detected"""
         rv = self.make_request(self.config.url)
         return rv.headers.get('content-type') == 'text/html; charset=utf-8'
 
     def probe_form_rendering(self):
+        """The default form rendering naming was detected"""
         if self.config.form_url is None:
             return 0.0
         rv = self.make_request(self.config.form_url)
@@ -284,21 +295,25 @@ class DjangoProber(Prober):
 
 
 class PyramidProber(Prober):
-    name = 'pyramid'
+    name = 'Pyramid / Pylons'
 
     def probe_reason_capitalization(self):
+        """The status reason has the correct capitalization"""
         rv = self.make_request(self.config.missing_url)
         return rv.status == 404 and rv.reason == 'Not Found'
 
     def probe_content_type(self):
+        """The correct default charset was detected"""
         rv = self.make_request(self.config.url)
         return rv.headers.get('content-type') == 'text/html; charset=UTF-8'
 
     def probe_404_content_length(self):
+        """404 page has a content length"""
         rv = self.make_request(self.config.missing_url)
         return 'content-length' in rv.headers
 
     def probe_slash_behavior(self):
+        """The pyramid 'don't care about slashes' behavior was detected"""
         if self.config.url_without_slash is None:
             return False
         rv1 = self.make_request(self.config.url_without_slash)
@@ -319,20 +334,25 @@ class PyramidProber(Prober):
 
 
 class WerkzeugProber(Prober):
-    name = 'werkzeug'
+    name = 'Werkzeug / Flask'
 
     def probe_reason_capitalization(self):
+        """The status reason has the correct capitalization"""
         rv = self.make_request(self.config.missing_url)
         return rv.status == 404 and rv.reason == 'NOT FOUND'
 
     def probe_content_type(self):
+        """The correct default charset was detected"""
         rv = self.make_request(self.config.url)
         return rv.headers.get('content-type') == 'text/html; charset=utf-8'
 
     def probe_securecookie(self):
+        """Something that looks like a securecookie was detected"""
         rv = self.make_request(self.config.url)
         setcookie = rv.headers.get('set-cookie')
         if setcookie is None:
+            return False
+        if not '; Path=' in setcookie:
             return False
         cookie = SimpleCookie(setcookie)
         for key, morsel in cookie.items():
@@ -346,15 +366,18 @@ class WerkzeugProber(Prober):
         return False
 
     def probe_connection_close(self):
+        """Connection close behavior detected"""
         rv = self.make_request(self.config.url)
         return rv.headers.get('connection') == 'close'
 
     def probe_easteregg(self):
+        """The Werkzeug easteregg was found"""
         rv = self.make_request(self.config.url + '?macgybarchakku')
         return rv.status == 200 and \
                'the Swiss Army knife of Python web development' in rv.body
 
     def probe_redirect_missing_slash(self):
+        """The missing slash redirection was detected"""
         if self.config.url_with_slash is None:
             return False
         rv = self.make_request(self.config.url_with_slash.rstrip('/'))
@@ -367,6 +390,7 @@ class WerkzeugProber(Prober):
                '<h1>Redirecting...</h1>' in rv.body
 
     def probe_404_on_trailing_slash(self):
+        """The extra slash 404 error was detected"""
         if self.config.url_without_slash is None:
             return False
         rv = self.make_request(self.config.url_without_slash)
@@ -379,7 +403,7 @@ class WerkzeugProber(Prober):
         return [
             Indicator(self.probe_reason_capitalization, 0.1),
             Indicator(self.probe_content_type, 0.1),
-            Indicator(self.probe_securecookie, 0.1),
+            Indicator(self.probe_securecookie, 0.3),
             Indicator(self.probe_connection_close, 0.1),
             Indicator(self.probe_easteregg, 1.0),
             Indicator(self.probe_redirect_missing_slash, 1.0),
@@ -391,6 +415,7 @@ class PHPProber(Prober):
     name = 'PHP'
 
     def probe_x_powered_by(self):
+        """PHP header detected"""
         rv = self.make_request(self.config.url)
         return rv.headers.get('x-powered-by', '').startswith('PHP/')
 
@@ -421,6 +446,10 @@ class Result(object):
 class Config(dict):
     default_user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.6; ' \
                          'rv:6.0a2) Gecko/20110604 Firefox/6.0a2'
+
+    @property
+    def timeout(self):
+        return self['timeout']
 
     @property
     def url(self):
@@ -463,13 +492,10 @@ def iter_probers(config):
 
 
 def probe_website(url, form_url=None, url_with_slash=None,
-                  url_without_slash=None):
-    config = Config({
-        'url':                  url,
-        'form_url':             form_url,
-        'url_with_slash':       url_with_slash,
-        'url_without_slash':    url_without_slash
-    })
+                  url_without_slash=None, timeout=None, config=None):
+    config = Config(config or {}, url=url, form_url=form_url,
+        url_with_slash=url_with_slash, url_without_slash=url_without_slash,
+        timeout=timeout)
     results = []
     for prober in iter_probers(config):
         rv = prober.check()
@@ -479,9 +505,9 @@ def probe_website(url, form_url=None, url_with_slash=None,
     return results
 
 
-def magic_probe(start_url):
+def magic_probe(start_url, timeout=None, config=None):
     form_url = url_with_slash = url_without_slash = None
-    resp = urllib.urlopen(start_url)
+    resp = urllib2.urlopen(start_url, timeout=timeout)
     url = resp.geturl()
 
     for link in _link_re.findall(resp.read()):
@@ -501,4 +527,5 @@ def magic_probe(start_url):
                 except IOError:
                     pass
 
-    return url, probe_website(url, form_url, url_with_slash, url_without_slash)
+    return url, probe_website(url, form_url, url_with_slash,
+                              url_without_slash, timeout, config)

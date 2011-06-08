@@ -1,0 +1,24 @@
+{% macro render_results(url, results) %}
+  <h2>Results for {{ url|hostname }}</h2>
+  {% if results %}
+  <p>
+    The website was analyzed and this is what it might be running.  The numbers
+    in red show how much every indiviual indication contributed to the overall
+    score.  Values above <strong class=score>1.0</strong> in total mean that
+    we're pretty confident.
+  <ul>
+  {%- for result in results %}
+    <li><strong class=score>{{ result.score }}</strong>:
+        <strong class=name>{{ result.prober.name }}</strong>
+      <ul class=hits>
+      {%- for indicator, score in result.hits %}
+        <li><strong class=score>{{ score }}</strong>:
+            <span class=description>{{ indicator.description }}</span>
+      {%- endfor %}
+      </ul>
+  {%- endfor %}
+  </ul>
+  {% else %}
+  <p>Does not look like this website is written in a technology we can detect.
+  {% endif %}
+{% endmacro %}

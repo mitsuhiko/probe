@@ -1,0 +1,10 @@
+<!doctype html>
+<title>{% block title %}{% endblock %} | Probe</title>
+<link rel=stylesheet href={{ url_for('static', filename='style.css') }} type=text/css>
+<script type=text/javascript
+  src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+<script type=text/javascript src="{{ url_for('static', filename='probe.js') }}"></script>
+<div class=box>
+  <h1>Probe</h1>
+  {% block body %}{% endblock %}
+</div>
