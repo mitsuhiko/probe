@@ -150,7 +150,7 @@ class Prober(object):
         if data is not None:
             body = StringIO(urllib.urlparse(data))
             headers['Content-Type'] = 'application/x-www-form-urlencoded'
-        key = (url, method, tuple(headers.items()))
+        key = (url, local_url, method, tuple(headers.items()))
         if key in self._request_cache:
             return self._request_cache[key]
 
