@@ -419,9 +419,15 @@ class PHPProber(Prober):
         rv = self.make_request(self.config.url)
         return rv.headers.get('x-powered-by', '').startswith('PHP/')
 
+    def probe_easter_egg(self):
+        """PHP easter egg detected"""
+        rv = self.make_request(self.config.url, query={'': 'PHPB8B5F2A0-3C92-11d3-A3A9-4C7B08C10000'})
+        return "PHP Credits" in rv.body
+
     def get_indicators(self):
         return [
-            Indicator(self.probe_x_powered_by, 1.0)
+            Indicator(self.probe_x_powered_by, 1.0),
+            Indicator(self.probe_easter_egg, 1.0)
         ]
 
 
